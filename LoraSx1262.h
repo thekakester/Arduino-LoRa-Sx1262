@@ -1,3 +1,19 @@
+/*License: Creative Commons 4.0 - Attribution, NonCommercial
+* https://creativecommons.org/licenses/by-nc/4.0/
+* Author: Mitch Davis (2023). github.com/thekakester
+* 
+* You are free to:
+*    Share — copy and redistribute the material in any medium or format
+*    Adapt — remix, transform, and build upon the material
+* Under the following terms:
+*    Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+*                  You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
+*    NonCommercial — You may not use the material for commercial purposes.
+*
+* No warranties are given. The license may not give you all of the permissions necessary for your intended use.
+* For example, other rights such as publicity, privacy, or moral rights may limit how you use the material
+*/
+
 #ifndef __LORA1262__
 #define __LORA1262__
 #include <Arduino.h>
@@ -27,8 +43,9 @@ class LoraSx1262 {
   public:
     LoraSx1262();
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
+    void transmit(byte* data, int dataLen);
   private:
-  
+    void configureRadioEssentials();
 };
 
 
