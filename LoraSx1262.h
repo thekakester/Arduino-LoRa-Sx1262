@@ -46,6 +46,7 @@ class LoraSx1262 {
     void transmit(byte* data, int dataLen);
   private:
     void configureRadioEssentials();
+    bool waitForRadioCommandCompletion(uint32_t timeout);
 };
 
 

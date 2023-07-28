@@ -2,7 +2,7 @@
 * https://creativecommons.org/licenses/by-nc/4.0/   (See README for details)*/
 #include "LoraSx1262.h"
 
-byte* payload = "Hello world. This is mitch and I'm doing a Lora Test to see how this works";
+byte payload = "Hello world.  This a pretty long payload. We can transmit up to 255 bytes at once, which is pretty neat if you ask me";
 LoraSx1262* radio;
 
 void setup() {
@@ -14,8 +14,9 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-
-  Serial.println("Loop");
+  Serial.print("Transmitting... ");
   radio->transmit(payload,strlen(payload));
+  Serial.println("Done!");
+
+  delay(1000);
 }

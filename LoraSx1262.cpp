@@ -170,7 +170,7 @@ void LoraSx1262::configureRadioEssentials() {
 
 
 void LoraSx1262::transmit(byte *data, int dataLen) {
-  uint8_t spiBuff[7];   //Buffer for sending SPI commands to radio
+  uint8_t spiBuff[32];   //Buffer for sending SPI commands to radio
 
   //Max lora packet size is 255 bytes
   if (dataLen > 255) { dataLen = 255;}
@@ -195,7 +195,7 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[6] = 0x00;          //PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
   SPI.transfer(spiBuff,7);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  delay(100);                  //Give time for radio to process the command
+  waitForRadioCommandCompletion(100);  //Give time for radio to process the command
 
   //Write the payload to the buffer
   //  Reminder: PayloadLength is defined in setPacketParams
@@ -203,9 +203,24 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[0] = 0x0E,          //Opcode for WriteBuffer command
   spiBuff[1] = 0x00;          //Dummy byte before writing payload
   SPI.transfer(spiBuff,2);    //Send header info
-  SPI.transfer(data,dataLen); //Write the payload itself
+
+  //SPI.transfer overwrites original buffer.  This could probably be confusing to the user
+  //If they tried writing the same buffer twice and got different results
+  //Eg "radio.transmit(buff,10); radio.transmit(buff,10);" would transmit two different packets
+  //We'll make a performance+memory compromise and write in 32 byte chunks to avoid changing the contents
+  //of the original data array
+  //Copy contents to SPI buff until it's full, and then write that
+  //TEST: I tested this method, which uses about 0.1ms (100 microseconds) more time, but it saves us about 10% of ram.
+  //I think this is a fair trade 
+  uint8_t size = sizeof(spiBuff);
+  for (uint16_t i = 0; i < dataLen; i += size) {
+    if (i + size > dataLen) { size = dataLen - i; }
+    memcpy(spiBuff,&(data[i]),size);
+    SPI.transfer(spiBuff,size); //Write the payload itself
+  }
+
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  delay(100);                  //Give time for radio to process the command
+  waitForRadioCommandCompletion(1000);   //Give time for radio to process the command
 
   //Transmit!
   // An interrupt will be triggered if we surpass our timeout
@@ -216,5 +231,52 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[3] = 0xFF;          //Timeout (3-byte number)
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  delay(2000);
+  waitForRadioCommandCompletion(3000);
+}
+
+/**This command will wait until the radio reports that it is no longer busy.
+This is useful when waiting for commands to finish that take a while such as transmitting packets.
+Specify a timeout (in milliseconds) to avoid an infinite loop if something happens to the radio
+
+Returns TRUE on success, FALSE if timeout hit
+*/
+bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
+  uint32_t startTime = millis();
+  bool dataTransmitted = false;
+
+  uint8_t spiBuff[2];
+
+  //Keep checking radio status until it has completed
+  while (!dataTransmitted) {
+    //Ask the radio for a status update
+    digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+    spiBuff[0] = 0xC0;          //Opcode for "getStatus" command
+    spiBuff[1] = 0x00;          //Dummy byte, status will overwrite this byte
+    SPI.transfer(spiBuff,2);
+    digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+
+    //Parse out the status (see datasheet for what each bit means)
+    uint8_t chipMode = (spiBuff[1] >> 4) & 0x7;     //Chip mode is bits [6:4] (3-bits)
+    uint8_t commandStatus = (spiBuff[1] >> 1) & 0x7;//Command status is bits [3:1] (3-bits)
+
+    //Status of 0, 1, and 2 means that we're still busy.  Anything else means we're done
+    //with the command
+    if (commandStatus != 0 && commandStatus != 1 && commandStatus != 2) {
+      dataTransmitted = true;
+    }
+
+    //If we're in standby mode, we don't need to wait at all
+    //0x03 = STBY_XOSC, 0x02= STBY_RC
+    if (chipMode == 0x03 || chipMode == 0x02) {
+      dataTransmitted = true;
+    }
+
+    //Avoid infinite loop by implementing a timeout
+    if (millis() - startTime >= timeout) {
+      return false;
+    }
+  }
+
+  //We did it!
+  return true;
 }
