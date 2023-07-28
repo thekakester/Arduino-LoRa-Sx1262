@@ -44,6 +44,7 @@ class LoraSx1262 {
     LoraSx1262();
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
     void transmit(byte* data, int dataLen);
+    void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
   private:
     void configureRadioEssentials();
     bool waitForRadioCommandCompletion(uint32_t timeout);

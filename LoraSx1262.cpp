@@ -280,3 +280,34 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
   //We did it!
   return true;
 }
+
+//Sets the radio into receive mode, allowing it to listen for incoming packets.
+//If you don't call this before trying to receive a packet, the radio will never catch icoming packets.
+//There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
+void LoraSx1262::setModeReceive() {
+  uint8_t spiBuff[7];
+
+  //Set packet parameters
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
+  spiBuff[1] = 0x00;          //PacketParam1 = Preamble Len MSB
+  spiBuff[2] = 0x0C;          //PacketParam2 = Preamble Len LSB
+  spiBuff[3] = 0x00;          //PacketParam3 = Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
+  spiBuff[4] = 0xFF;          //PacketParam4 = Payload Length (Max is 255 bytes)
+  spiBuff[5] = 0x00;          //PacketParam5 = CRC Type. 0x00 = Off, 0x01 = on
+  spiBuff[6] = 0x00;          //PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
+  SPI.transfer(spiBuff,7);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitForRadioCommandCompletion(100);
+
+  // Tell the chip to wait for it to receive a packet.
+  // Based on our previous config, this should throw an interrupt when we get a packet
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x82;          //0x82 is the opcode for "SetRX"
+  spiBuff[1] = 0xFF;          //24-bit timeout, 0xFFFFFF means no timeout
+  spiBuff[2] = 0xFF;          // ^^
+  spiBuff[3] = 0xFF;          // ^^
+  SPI.transfer(spiBuff,4);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitForRadioCommandCompletion(100);
+}
