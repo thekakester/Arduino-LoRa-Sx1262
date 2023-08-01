@@ -38,6 +38,7 @@
 //Pin configurations (for Arduino UNO)
 #define SX1262_NSS   7
 #define SX1262_RESET A0
+#define SX1262_DIO1  5
 
 class LoraSx1262 {
   public:
@@ -45,10 +46,17 @@ class LoraSx1262 {
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
     void transmit(byte* data, int dataLen);
     void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
+    int lora_receive_async(byte* buff, int buffMaxLen); /*Checks to see if a lora packet was received yet, returns the packet if available*/
+    int lora_receive_blocking(byte* buff, int buffMaxLen, uint32_t timeout); /*Waits until a packet is received, with an optional timeout*/
+    
+    //These variables show signal quality, and are updated automatically whenever a packet is received
+    int rssi = 0;
+    int snr = 0;
+    int signalRssi = 0;
   private:
     void configureRadioEssentials();
     bool waitForRadioCommandCompletion(uint32_t timeout);
+    bool inReceiveMode = false;
 };
-
 
 #endif

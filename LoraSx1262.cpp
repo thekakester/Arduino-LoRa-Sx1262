@@ -1,3 +1,4 @@
+#include "Arduino.h"
 /*License: Creative Commons 4.0 - Attribution, NonCommercial
 * https://creativecommons.org/licenses/by-nc/4.0/
 * Author: Mitch Davis (2023). github.com/thekakester
@@ -27,6 +28,8 @@ LoraSx1262::LoraSx1262() {
 
   pinMode(SX1262_RESET,OUTPUT);
   digitalWrite(SX1262_RESET, 1);  //High = inactive
+
+  pinMode(SX1262_DIO1, INPUT);  //Radio interrupt pin.  Goes high when we receive a packet
 
   //Hardware reset the radio by toggling the reset pin
   digitalWrite(SX1262_RESET, 0); delay(10);
@@ -232,6 +235,9 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   waitForRadioCommandCompletion(3000);
+
+  //Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
+  inReceiveMode = false;
 }
 
 /**This command will wait until the radio reports that it is no longer busy.
@@ -282,9 +288,11 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
 }
 
 //Sets the radio into receive mode, allowing it to listen for incoming packets.
-//If you don't call this before trying to receive a packet, the radio will never catch icoming packets.
+//If radio is already in receive mode, this does nothing.
 //There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
 void LoraSx1262::setModeReceive() {
+  if (inReceiveMode) { return; }  //We're already in receive mode, this would do nothing
+
   uint8_t spiBuff[7];
 
   //Set packet parameters
@@ -310,4 +318,112 @@ void LoraSx1262::setModeReceive() {
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   waitForRadioCommandCompletion(100);
+
+  //Remember that we're in receive mode so we don't need to run this code again unnecessarily
+  inReceiveMode = true;
+}
+
+/*Receive a packet if available
+If available, this will return the size of the packet and store the packet contents into the user-provided buffer.
+A max length of the buffer can be provided to avoid buffer overflow.  If buffer is not large enough for entire payload, overflow is thrown out.
+Recommended to pass in a buffer that is 255 bytes long to make sure you can received any lora packet that comes in.
+
+Returns -1 when no packet is available.
+Returns 0 when an empty packet is received (packet with no payload)
+Returns payload size (1-255) when a packet with a non-zero payload is received. If packet received is larger than the buffer provided, this will return buffMaxLen
+*/
+int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
+  setModeReceive(); //Sets the mode to receive (if not already in receive mode)
+
+  //Radio pin DIO1 (interrupt) goes high when we have a packet ready.  If it's low, there's no packet yet
+  if (digitalRead(SX1262_DIO1) == false) { return -1; } //Return -1, meanining no packet ready
+
+  uint8_t spiBuff[5]; //Used for sending SPI commands
+
+  //Tell the radio to clear the interrupt, and set the pin back inactive.
+  while (digitalRead(SX1262_DIO1)) {
+    //Clear all interrupt flags.  This should result in the interrupt pin going low
+    digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+    spiBuff[0] = 0x02;          //Opcode for ClearIRQStatus command
+    spiBuff[1] = 0xFF;          //IRQ bits to clear (MSB) (0xFFFF means clear all interrupts)
+    spiBuff[2] = 0xFF;          //IRQ bits to clear (LSB)
+    SPI.transfer(spiBuff,3);
+    digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  }
+
+  // (Optional) Read the packet status info from the radio.
+  // This is things like radio strength, noise, etc.
+  // See datasheet 13.5.3 for more info
+  // This provides debug info about the packet we received
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x14;          //Opcode for get packet status
+  spiBuff[1] = 0xFF;          //Dummy byte. Returns status
+  spiBuff[2] = 0xFF;          //Dummy byte. Returns rssi
+  spiBuff[3] = 0xFF;          //Dummy byte. Returns snd
+  spiBuff[4] = 0xFF;          //Dummy byte. Returns signal RSSI
+  SPI.transfer(spiBuff,5);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+
+  //Store these values as class variables so they can be accessed if needed
+  //Documentation for what these variables mean can be found in the .h file
+  rssi       = -((int)spiBuff[2]) / 2;  //"Average over last packet received of RSSI. Actual signal power is –RssiPkt/2 (dBm)"
+  snr        =  ((int8_t)spiBuff[3]) / 4;   //SNR is returned as a SIGNED byte, so we need to do some conversion first
+  signalRssi = -((int)spiBuff[4]) / 2;
+    
+  //We're almost ready to read the packet from the radio
+  //But first we have to know how big the packet is, and where in the radio memory it is stored
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x13;          //Opcode for GetRxBufferStatus command
+  spiBuff[1] = 0xFF;          //Dummy.  Returns radio status
+  spiBuff[2] = 0xFF;          //Dummy.  Returns loraPacketLength
+  spiBuff[3] = 0xFF;          //Dummy.  Returns memory offset (address)
+  SPI.transfer(spiBuff,4);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+
+  uint8_t payloadLen = spiBuff[2];    //How long the lora packet is
+  uint8_t startAddress = spiBuff[3];  //Where in 1262 memory is the packet stored
+
+  //Make sure we don't overflow the buffer if the packet is larger than our buffer
+  if (buffMaxLen < payloadLen) {payloadLen = buffMaxLen;}
+
+  //Read the radio buffer from the SX1262 into the user-supplied buffer
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x1E;          //Opcode for ReadBuffer command
+  spiBuff[1] = startAddress;  //SX1262 memory location to start reading from
+  spiBuff[2] = 0x00;          //Dummy byte
+  SPI.transfer(spiBuff,3);    //Send commands to get read started
+  SPI.transfer(buff,payloadLen);  //Get the contents from the radio and store it into the user provided buffer
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+
+  return payloadLen;  //Return how many bytes we actually read
+}
+
+/*Waits for a packet to come in.  This code will block until something is received, or the timeout is hit.
+Set timeout=0 for no timeout, or set to a positive integer to specify a timeout in milliseconds
+This will store the contents of the payload into the user-provided buffer.  Recommended to use a buffer with 255 bytes to always receive full packet.
+If a smaller buffer is used, maxBuffLen can be set to avoid buffer overflow. Any packets larger than this will have remaining bytes thrown out.
+
+Returns -1 when no packet is available and timeout was hit.
+Returns 0 when an empty packet is received (packet with no payload)
+Returns payload size (1-255) when a packet with a non-zero payload is received. If packet received is larger than the buffer provided, this will return buffMaxLen
+*/
+int LoraSx1262::lora_receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout) {
+  setModeReceive(); //Sets the mode to receive (if not already in receive mode)
+
+  uint32_t startTime = millis();
+  uint32_t elapsed = startTime;
+
+  //Wait for radio interrupt pin to go high, indicating a packet was received, or if we hit our timeout
+  while (digitalRead(SX1262_DIO1) == false) {
+    //If user specified a timeout, check if we hit it
+    if (timeout > 0) {
+      elapsed = millis() - startTime;
+      if (elapsed >= timeout) {
+        return -1;    //Return error, saying that we hit our timeout
+      }
+    }
+  }
+
+  //If our pin went high, then we got a packet!  Return it
+  return lora_receive_async(buff,buffMaxLen);
 }

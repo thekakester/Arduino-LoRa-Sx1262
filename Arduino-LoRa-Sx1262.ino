@@ -2,11 +2,10 @@
 * https://creativecommons.org/licenses/by-nc/4.0/   (See README for details)*/
 #include "LoraSx1262.h"
 
-byte payload = "Hello world.  This a pretty long payload. We can transmit up to 255 bytes at once, which is pretty neat if you ask me";
 LoraSx1262* radio;
+byte receiveBuff[255];
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println("Booted");
 
@@ -14,9 +13,13 @@ void setup() {
 }
 
 void loop() {
-  Serial.print("Transmitting... ");
-  radio->transmit(payload,strlen(payload));
-  Serial.println("Done!");
+  //Receive a packet over radio
+  int bytesRead = radio->lora_receive_async(receiveBuff, sizeof(receiveBuff));
 
-  delay(1000);
+  if (bytesRead > -1) {
+    //Print the payload out over serial
+    Serial.print("Received: ");
+    Serial.write(receiveBuff,bytesRead);
+    Serial.println(); //Add a newline after printing
+  }
 }
