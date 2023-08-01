@@ -53,7 +53,8 @@ void loop() {
 }
 ```
 
-## License: Creative Commons 4.0 - Attribution, NonCommercial
+# License
+## Creative Commons 4.0 - Attribution, NonCommercial
 https://creativecommons.org/licenses/by-nc/4.0/
 Author: Mitch Davis (2023). github.com/thekakester
 
