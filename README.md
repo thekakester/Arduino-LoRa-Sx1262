@@ -1,5 +1,6 @@
 # Arduino-LoRa-Sx1262
-A lightweight and fast library for using a LoRa 900mhz radio on an Arduino Uno (R3 and R4) 
+A lightweight and fast library for using a LoRa 900mhz radio on an Arduino Uno (R3 and R4).
+This library currently uses 2690 bytes of ProgMem and 25 bytes of RAM.
 
 # How to use (Examples)
 ## Receive Example:
