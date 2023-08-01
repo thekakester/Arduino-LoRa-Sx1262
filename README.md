@@ -1,9 +1,57 @@
 # Arduino-LoRa-Sx1262
 A lightweight and fast library for using a LoRa 900mhz radio on an Arduino Uno (R3 and R4) 
 
-# In Development
-This library is still in development, and not ready to use yet.  I plan to work on this on Tuesday/Wednesday/Thursdays until it is complete
+# How to use (Examples)
+## Receive Example:
+```C++
+#include "LoraSx1262.h"
 
+LoraSx1262* radio;
+byte receiveBuff[255];
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Booted");
+
+  radio = new LoraSx1262();
+}
+
+void loop() {
+  //Receive a packet over radio
+  int bytesRead = radio->lora_receive_async(receiveBuff, sizeof(receiveBuff));
+
+  if (bytesRead > -1) {
+    //Print the payload out over serial
+    Serial.print("Received: ");
+    Serial.write(receiveBuff,bytesRead);
+    Serial.println(); //Add a newline after printing
+  }
+}
+```
+
+## Transmit Example
+```C++
+#include "LoraSx1262.h"
+
+byte payload = "Hello world.  This a pretty long payload. We can transmit up to 255 bytes at once, which is pretty neat if you ask me";
+LoraSx1262* radio;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  Serial.println("Booted");
+
+  radio = new LoraSx1262();
+}
+
+void loop() {
+  Serial.print("Transmitting... ");
+  radio->transmit(payload,strlen(payload));
+  Serial.println("Done!");
+
+  delay(1000);
+}
+```
 
 ## License: Creative Commons 4.0 - Attribution, NonCommercial
 https://creativecommons.org/licenses/by-nc/4.0/
