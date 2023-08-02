@@ -57,6 +57,7 @@ void loop() {
 # License
 ## Creative Commons 4.0 - Attribution, NonCommercial
 https://creativecommons.org/licenses/by-nc/4.0/
+See LICENSE.txt for full license
 Author: Mitch Davis (2023). github.com/thekakester
 
 You are free to:

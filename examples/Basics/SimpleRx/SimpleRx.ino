@@ -1,6 +1,6 @@
 /*License: CC 4.0 - Attribution, NonCommercial (by Mitch Davis, github.com/thekakester)
 * https://creativecommons.org/licenses/by-nc/4.0/   (See README for details)*/
-#include "LoraSx1262.h"
+#include <LoraSx1262.h>
 
 LoraSx1262* radio;
 byte receiveBuff[255];
