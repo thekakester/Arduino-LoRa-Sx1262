@@ -17,7 +17,7 @@
 
 #include "LoraSx1262.h"
 
-LoraSx1262::LoraSx1262() {
+bool LoraSx1262::begin() {
   //Set up SPI to talk to the LoRa Radio shield
   SPI.begin();
 
@@ -37,9 +37,11 @@ LoraSx1262::LoraSx1262() {
   
   //Ensure SPI communication is working with the radio
   bool success = sanityCheck();
-  if (!success) { return; }
+  if (!success) { return false; }
 
-  configureRadioEssentials();
+  this->configureRadioEssentials();
+  
+  return true;  //Return success that we set up the radio
 }
 
 /* Tests that SPI is communicating correctly with the radio.
@@ -67,8 +69,6 @@ bool LoraSx1262::sanityCheck() {
 * Essential commands are found by reading the datasheet
 */
 void LoraSx1262::configureRadioEssentials() {
-  uint8_t spiBuff[9];  //A buffer for sending/receiving SPI data
-
   //Tell DIO2 to control the RF switch so we don't have to do it manually
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x9D;  //Opcode for "SetDIO2AsRfSwitchCtrl"
@@ -77,17 +77,9 @@ void LoraSx1262::configureRadioEssentials() {
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   delay(100); //Give time for the radio to proces command
 
-  //Set PLL frequency (this is a complicated math equation.  See datasheet entry for SetRfFrequency)
-  uint32_t pllFrequency = 959447040;  //915MHz, see Datasheet for calcualting this number
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x86;  //Opcode for set RF Frequencty
-  spiBuff[1] = (pllFrequency >> 24) & 0xFF;  //MSB of pll frequency
-  spiBuff[2] = (pllFrequency >> 16) & 0xFF;  //
-  spiBuff[3] = (pllFrequency >>  8) & 0xFF;  //
-  spiBuff[4] = (pllFrequency >>  0) & 0xFF;  //LSB of requency
-  SPI.transfer(spiBuff,5);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  delay(100);                  //Give time for the radio to proces command
+  //Just a single SPI command to set the frequency, but it's broken out
+  //into its own function so we can call it on-the-fly when the config changes
+  this->updateRadioFrequency();
 
   //Set modem to LoRa (described in datasheet section 13.4.2)
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
@@ -104,24 +96,9 @@ void LoraSx1262::configureRadioEssentials() {
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   delay(100);                  //Give time for radio to process the command
 
-  /*Set modulation parameters
-  # Modulation parameters are:
-  #  - SpreadingFactor
-  #  - Bandwidth
-  #  - CodingRate
-  #  - LowDataRateOptimize
-  # None of these actually matter that much.  You can set them to anything, and data will still show up
-  # on a radio frequency monitor.
-  # You just MUST call "setModulationParameters", otherwise the radio won't work at all*/
-  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
-  spiBuff[0] = 0x8B;          //Opcode for "SetModulationParameters"
-  spiBuff[1] = 0x07;          //ModParam1 = Spreading Factor.  Can be SF5-SF12, written in hex (0x05-0x0C)
-  spiBuff[2] = 0x06;          //ModParam2 = Bandwidth.  See Datasheet 13.4.5.2 for details. 0x00=7.81khz (slowest)
-  spiBuff[3] = 0x01;          //ModParam3 = CodingRate.  Semtech recommends CR_4_5 (which is 0x01).  Options are 0x01-0x04, which correspond to coding rate 5-8 respectively
-  spiBuff[4] = 0x00;          //LowDataRateOptimize.  0x00 = 0ff, 0x01 = On.  Required to be on for SF11 + SF12
-  SPI.transfer(spiBuff,5);
-  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  delay(100);                  //Give time for radio to process the command
+  //Set modulation parameters is just one more SPI command, but since it
+  //is often called frequently when changing the radio config, it's broken up into its own function
+  this->updateModulationParameters();
 
   // Set PA Config
   // See datasheet 13.1.4 for descriptions and optimal settings recommendations
@@ -173,8 +150,6 @@ void LoraSx1262::configureRadioEssentials() {
 
 
 void LoraSx1262::transmit(byte *data, int dataLen) {
-  uint8_t spiBuff[32];   //Buffer for sending SPI commands to radio
-
   //Max lora packet size is 255 bytes
   if (dataLen > 255) { dataLen = 255;}
 
@@ -250,8 +225,6 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
   uint32_t startTime = millis();
   bool dataTransmitted = false;
 
-  uint8_t spiBuff[2];
-
   //Keep checking radio status until it has completed
   while (!dataTransmitted) {
     //Ask the radio for a status update
@@ -292,8 +265,6 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
 //There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
 void LoraSx1262::setModeReceive() {
   if (inReceiveMode) { return; }  //We're already in receive mode, this would do nothing
-
-  uint8_t spiBuff[7];
 
   //Set packet parameters
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
@@ -337,8 +308,6 @@ int LoraSx1262::lora_receive_async(byte* buff, int buffMaxLen) {
 
   //Radio pin DIO1 (interrupt) goes high when we have a packet ready.  If it's low, there's no packet yet
   if (digitalRead(SX1262_DIO1) == false) { return -1; } //Return -1, meanining no packet ready
-
-  uint8_t spiBuff[5]; //Used for sending SPI commands
 
   //Tell the radio to clear the interrupt, and set the pin back inactive.
   while (digitalRead(SX1262_DIO1)) {
@@ -427,3 +396,181 @@ int LoraSx1262::lora_receive_blocking(byte *buff, int buffMaxLen, uint32_t timeo
   //If our pin went high, then we got a packet!  Return it
   return lora_receive_async(buff,buffMaxLen);
 }
+
+//Set the radio frequency.  Just a single SPI call,
+//but this is broken out to make it more convenient to change frequency on-the-fly
+//You must set this->pllFrequency before calling this
+void LoraSx1262::updateRadioFrequency() {
+  //Set PLL frequency (this is a complicated math equation.  See datasheet entry for SetRfFrequency)
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x86;  //Opcode for set RF Frequencty
+  spiBuff[1] = (this->pllFrequency >> 24) & 0xFF;  //MSB of pll frequency
+  spiBuff[2] = (this->pllFrequency >> 16) & 0xFF;  //
+  spiBuff[3] = (this->pllFrequency >>  8) & 0xFF;  //
+  spiBuff[4] = (this->pllFrequency >>  0) & 0xFF;  //LSB of requency
+  SPI.transfer(spiBuff,5);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  delay(100);                  //Give time for the radio to proces command
+}
+
+//Set the radio modulation parameters.
+//This is things like bandwitdh, spreading factor, coding rate, etc.
+//This is broken into its own function because this command might get called frequently
+void LoraSx1262::updateModulationParameters() {
+  /*Set modulation parameters
+  # Modulation parameters are:
+  #  - SpreadingFactor
+  #  - Bandwidth
+  #  - CodingRate
+  #  - LowDataRateOptimize
+  # None of these actually matter that much.  You can set them to anything, and data will still show up
+  # on a radio frequency monitor.
+  # You just MUST call "setModulationParameters", otherwise the radio won't work at all*/
+  digitalWrite(SX1262_NSS,0);       //Enable radio chip-select
+  spiBuff[0] = 0x8B;                //Opcode for "SetModulationParameters"
+  spiBuff[1] = this->spreadingFactor;     //ModParam1 = Spreading Factor.  Can be SF5-SF12, written in hex (0x05-0x0C)
+  spiBuff[2] = this->bandwidth;           //ModParam2 = Bandwidth.  See Datasheet 13.4.5.2 for details. 0x00=7.81khz (slowest)
+  spiBuff[3] = this->codingRate;          //ModParam3 = CodingRate.  Semtech recommends CR_4_5 (which is 0x01).  Options are 0x01-0x04, which correspond to coding rate 5-8 respectively
+  spiBuff[4] = this->lowDataRateOptimize; //LowDataRateOptimize.  0x00 = 0ff, 0x01 = On.  Required to be on for SF11 + SF12
+  SPI.transfer(spiBuff,5);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  delay(100);                  //Give time for radio to process the command
+}
+
+
+//--------------------------
+// ADVANCED FUNCTIONS
+//--------------------------
+//The functions below are intended for advanced users who are more familiar with LoRa Radios at a lower level
+
+/** (Optional) Set the operating frequency of the radio.
+* The 1262 radio supports 150-960Mhz.  This library uses a default of 915Mhz.
+* MAKE SURE THAT YOU ARE OPERATING IN A FREQUENCY THAT IS ALLOWED IN YOUR COUNTRY!
+* For example, 915mhz (915000000 hz) is safe in the US.
+*
+* Specify the desired frequency in Hz (eg 915MHZ is 915000000).
+* Returns TRUE on success, FALSE on invalid frequency
+*/
+bool LoraSx1262::configSetFrequency(long frequencyInHz) {
+  //Make sure the specified frequency is in the valid range.
+  if (frequencyInHz < 150000000 || frequencyInHz > 960000000) { return false;}
+
+  //Calculate the PLL frequency (See datasheet section 13.4.1 for calculation)
+  //PLL frequency controls the radio's clock multipler to achieve the desired frequency
+  this->pllFrequency = frequencyToPLL(frequencyInHz);
+  updateRadioFrequency();
+}
+
+/*Set the bandwith (basically, this is how big the frequency span is that we occupy)
+* Bigger bandwidth allows us to transmit large amounts of data faster, but it occupies a larger span of frequencies.
+* Smaller bandwith takes longer to transmit large amounts of data, but its less likely to collide with other frequencies.
+*
+* Available bandwidth settings, pulled from datasheet 13.4.5.2
+*  SETTING.   | Bandwidth
+* ------------+-----------
+*    0x00     |    7.81khz
+*    0x08     |   10.42khz
+*    0x01     |   15.63khz
+*    0x09     |   20.83khz
+*    0x02     |   31.25khz
+*    0x0A     |   41.67khz
+*    0x03     |   62.50khz
+*    0x04     |  125.00khz
+*    0x05     |  250.00khz
+*    0x06     |  500.00khz (default)
+*
+* Returns TRUE on success, FALSE on failure (invalid bandwidth)
+*/
+bool LoraSx1262::configSetBandwidth(int bandwidth) {
+  //Bandwidth setting must be 0-10 (excluding 7 for some reason)
+  if (bandwidth < 0 || bandwidth > 0x0A || bandwidth == 7) { return false; }
+  this->bandwidth = bandwidth;
+  this->updateModulationParameters();
+  return true;
+}
+
+/*I honestly don't really know what coding rate means.  It's something technical to have to do with radios
+* Set it here if you want.  See datasheet 13.4.5.2 for details
+*  SETTING. | Coding Rate
+* ----------+--------------------
+*    0x01   |   CR_4_5 (default)
+*    0x02   |   CR_4_6
+*    0x03   |   CR_4_7
+*    0x04   |   CR_4_8
+*
+* Returns TRUE on success, FALSE on failure (invalid coding rate)
+*/
+bool LoraSx1262::configSetCodingRate(int codingRate) {
+  //Coding rate must be 1-4 (inclusive)
+  if (codingRate < 1 || codingRate > 4) { return false; }
+  this->codingRate = codingRate;
+  this->updateModulationParameters();
+}
+
+/*Change the spreading factor of a packet
+The higher the spreading factor, the slower and more reliable the transmission will be.
+Higher spreading factors are good for longer distances with slower transmit speeds.
+Lower spreading factors are good when the radios are close, which allows faster transmission speeds.
+
+* Setting | Spreading Factor
+* --------+---------------------------
+*    5    | SF5 (fastest, short range)
+*    6    | SF6
+*    7    | SF7 (default)
+*    8    | SF8
+*    9    | SF9
+*   10    | SF10 
+*   11    | SF11
+*   12    | SF12 (Slowest, long range, most reliable)
+*
+* Returns TRUE on success, FALSE on failure (incorrect spreading factor)
+*/
+bool LoraSx1262::configSetSpreadingFactor(int spreadingFactor) {
+  if (spreadingFactor < 5 || spreadingFactor > 12) { return false; }
+
+  //The datasheet highly recommends enabling "LowDataRateOptimize" for SF11 and SF12
+  this->lowDataRateOptimize = (spreadingFactor >= 11) ? 1 : 0;  //Turn on for SF11+SF12, turn off for anything else
+  this->spreadingFactor = spreadingFactor;
+  this->updateModulationParameters();
+}
+
+/*Convert a frequency in hz (such as 915000000) to the respective PLL setting.
+* The radio requires that we set the PLL, which controls the multipler on the internal clock to achieve the desired frequency.
+* Valid frequencies are 150mhz to 960mhz (150000000 to 960000000)
+*
+* NOTE: This assumes the radio is using a 32mhz clock, which is standard.  This is independent of the microcontroller clock
+* See datasheet section 13.4.1 for this calculation.
+* Example: 915mhz (915000000) has a PLL of 959447040
+*/
+uint32_t LoraSx1262::frequencyToPLL(long rfFreq) {
+  /* Datasheet Says:
+	 *		rfFreq = (pllFreq * xtalFreq) / 2^25
+	 * Rewrite to solve for pllFreq
+	 *		pllFreq = (2^25 * rfFreq)/xtalFreq
+	 *
+	 *	In our case, xtalFreq is 32mhz
+	 *	pllFreq = (2^25 * rfFreq) / 32000000
+	 */
+
+	//Basically, we need to do "return ((1 << 25) * rfFreq) / 32000000L"
+  //It's very important to perform this without losing precision or integer overflow.
+  //If arduino supported 64-bit varibales (which it doesn't), we could just do this:
+  //    uint64_t firstPart = (1 << 25) * (uint64_t)rfFreq;
+  //    return (uint32_t)(firstPart / 32000000L);
+  //
+  //Instead, we need to break this up mathimatically to avoid integer overflow
+  //First, we'll simplify the equation by dividing both parts by 2048 (2^11)
+  //    ((1 << 25) * rfFreq) / 32000000L      -->      (16384 * rfFreq) / 15625;
+  //
+  // Now, we'll divide first, then multiply (multiplying first would cause integer overflow)
+  // Because we're dividing, we need to keep track of the remainder to avoid losing precision
+  uint32_t q = rfFreq / 15625UL;  //Gives us the result (quotient), rounded down to the nearest integer
+  uint32_t r = rfFreq % 15625UL;  //Everything that isn't divisible, aka "the part that hasn't been divided yet"
+
+  //Multiply by 16384 to satisfy the equation above
+  q *= 16384UL;
+  r *= 16384UL; //Don't forget, this part still needs to be divided because it was too small to divide before
+  
+  return q + (r / 15625UL);  //Finally divide the the remainder part before adding it back in with the quotient
+}
+

@@ -42,21 +42,40 @@
 
 class LoraSx1262 {
   public:
-    LoraSx1262();
+    bool begin();
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
     void transmit(byte* data, int dataLen);
     void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
     int lora_receive_async(byte* buff, int buffMaxLen); /*Checks to see if a lora packet was received yet, returns the packet if available*/
     int lora_receive_blocking(byte* buff, int buffMaxLen, uint32_t timeout); /*Waits until a packet is received, with an optional timeout*/
+
+    //Radio configuration (optional)
+    bool configSetFrequency(long frequencyInHz);
+    bool configSetBandwidth(int bandwidth);
+    bool configSetCodingRate(int codingRate);
+    bool configSetSpreadingFactor(int spreadingFactor);
     
     //These variables show signal quality, and are updated automatically whenever a packet is received
     int rssi = 0;
     int snr = 0;
     int signalRssi = 0;
+
+    uint32_t frequencyToPLL(long freqInHz);
+
   private:
     void configureRadioEssentials();
     bool waitForRadioCommandCompletion(uint32_t timeout);
+    void updateRadioFrequency();
+    void updateModulationParameters();
     bool inReceiveMode = false;
+    uint8_t spiBuff[32];   //Buffer for sending SPI commands to radio
+
+    //Config variables (defaults set)
+    uint32_t pllFrequency       = 959447040;  //Default. 959447040 = 915mhz
+    uint8_t bandwidth           = 0x06;       //0x06 = 500khz (ranges from 7.81khz to 500khz, see lookup table datasheet 13.4.5.2)
+    uint8_t codingRate          = 0x01;       //0x01 = LORA_CR_4_5
+    uint8_t spreadingFactor     = 0x07;       //Can be SF5 to SF12, represented as 0x05-0x0C respectively.  0x05 = fastest, 0x0C = highest range
+    uint8_t lowDataRateOptimize = 0x00;       //Should be on (0x01) for SF11 + SF12, off for all others
 };
 
 #endif
