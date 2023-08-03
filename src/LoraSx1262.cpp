@@ -39,6 +39,7 @@ bool LoraSx1262::begin() {
   bool success = sanityCheck();
   if (!success) { return false; }
 
+  //Run the bare-minimum required SPI commands to set up the radio to use
   this->configureRadioEssentials();
   
   return true;  //Return success that we set up the radio
@@ -79,7 +80,7 @@ void LoraSx1262::configureRadioEssentials() {
 
   //Just a single SPI command to set the frequency, but it's broken out
   //into its own function so we can call it on-the-fly when the config changes
-  this->updateRadioFrequency();
+  this->configSetFrequency(915000000);  //Set default frequency to 915mhz
 
   //Set modem to LoRa (described in datasheet section 13.4.2)
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
@@ -98,7 +99,7 @@ void LoraSx1262::configureRadioEssentials() {
 
   //Set modulation parameters is just one more SPI command, but since it
   //is often called frequently when changing the radio config, it's broken up into its own function
-  this->updateModulationParameters();
+  this->configSetPreset(PRESET_DEFAULT);  //Sets default modulation parameters
 
   // Set PA Config
   // See datasheet 13.1.4 for descriptions and optimal settings recommendations
@@ -163,6 +164,8 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   # - CRC on/off
   # - IQ Inversion on/off
   */
+   
+
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
   spiBuff[1] = 0x00;          //PacketParam1 = Preamble Len MSB
@@ -197,6 +200,7 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
     SPI.transfer(spiBuff,size); //Write the payload itself
   }
 
+
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   waitForRadioCommandCompletion(1000);   //Give time for radio to process the command
 
@@ -209,7 +213,7 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   spiBuff[3] = 0xFF;          //Timeout (3-byte number)
   SPI.transfer(spiBuff,4);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
-  waitForRadioCommandCompletion(3000);
+  waitForRadioCommandCompletion(this->transmitTimeout); //Wait for tx to complete, with a timeout so we don't wait forever
 
   //Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
   inReceiveMode = false;
@@ -227,6 +231,12 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
 
   //Keep checking radio status until it has completed
   while (!dataTransmitted) {
+    //Wait some time between spamming SPI status commands, asking if the chip is ready yet
+    //Some commands take a bit before the radio even changes into a busy state,
+    //so if we check too fast we might pre-maturely think we're done processing the command
+    //3ms delay gives inconsistent results.  4ms seems stable.  Using 5ms to be safe
+    delay(5);
+
     //Ask the radio for a status update
     digitalWrite(SX1262_NSS,0); //Enable radio chip-select
     spiBuff[0] = 0xC0;          //Opcode for "getStatus" command
@@ -238,8 +248,8 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
     uint8_t chipMode = (spiBuff[1] >> 4) & 0x7;     //Chip mode is bits [6:4] (3-bits)
     uint8_t commandStatus = (spiBuff[1] >> 1) & 0x7;//Command status is bits [3:1] (3-bits)
 
-    //Status of 0, 1, and 2 means that we're still busy.  Anything else means we're done
-    //with the command
+    //Status 0, 1, 2 mean we're still busy.  Anything else means we're done.
+    //Commands 3-6 = command timeout, command processing error, failure to execute command, and Tx Done (respoectively)
     if (commandStatus != 0 && commandStatus != 1 && commandStatus != 2) {
       dataTransmitted = true;
     }
@@ -435,6 +445,38 @@ void LoraSx1262::updateModulationParameters() {
   SPI.transfer(spiBuff,5);
   digitalWrite(SX1262_NSS,1); //Disable radio chip-select
   delay(100);                  //Give time for radio to process the command
+
+  //Come up with a reasonable timeout for transmissions
+  //SF12 is painfully slow, so we want a nice long timeout for that,
+  //but we really don't want someone using SF5 to have to wait MINUTES for a timeout
+  //I came up with these timeouts by measuring how long it actually took to transmit a packet
+  //at each spreading factor with a MAX 255-byte payload and 7khz Bandwitdh (the slowest one)
+  switch (this->spreadingFactor) {
+    case 12:
+      this->transmitTimeout = 252000; //Actual tx time 126 seconds
+      break;
+    case 11:
+      this->transmitTimeout = 160000; //Actual tx time 81 seconds
+      break;
+    case 10:
+      this->transmitTimeout = 60000; //Actual tx time 36 seconds
+      break;
+    case 9:
+      this->transmitTimeout = 40000; //Actual tx time 20 seconds
+      break;
+    case 8:
+      this->transmitTimeout = 20000; //Actual tx time 11 seconds
+      break;
+    case 7:
+      this->transmitTimeout = 12000; //Actual tx time 6.3 seconds
+      break;
+    case 6:
+      this->transmitTimeout = 7000; //Actual tx time 3.7s seconds
+      break;
+    default:  //SF5
+      this->transmitTimeout = 5000; //Actual tx time 2.2 seconds
+      break;
+  }
 }
 
 
@@ -442,6 +484,51 @@ void LoraSx1262::updateModulationParameters() {
 // ADVANCED FUNCTIONS
 //--------------------------
 //The functions below are intended for advanced users who are more familiar with LoRa Radios at a lower level
+
+
+/**(Optional) Use one of the pre-made radio configurations
+* This is ideal for making simple changes to the radio config
+* without needing to understand how the underlying settings work
+* 
+* Argument: pass in one of the following
+*     - PRESET_DEFAULT:   Default radio config.
+*                         Medium range, medium speed
+*     - PRESET_FAST:      Faster speeds, but less reliable at long ranges.
+*                         Use when you need fast data transfer and have radios close together
+*     - PRESET_LONGRANGE: Most reliable option, but slow. Suitable when you prioritize
+*                         reliability over speed, or when transmitting over long distances
+*/
+bool LoraSx1262::configSetPreset(int preset) {
+  if (preset == PRESET_DEFAULT) {
+    this->bandwidth = 5;            //250khz
+    this->codingRate = 1;           //CR_4_5
+    this->spreadingFactor = 7;      //SF7
+    this->lowDataRateOptimize = 0;  //Don't optimize (used for SF12 only)
+    this->updateModulationParameters();
+    return true;
+  }
+
+  if (preset == PRESET_LONGRANGE) {
+    this->bandwidth = 4;            //125khz
+    this->codingRate = 1;           //CR_4_5
+    this->spreadingFactor = 12;     //SF12
+    this->lowDataRateOptimize = 1;  //Optimize for low data rate (SF12 only)
+    this->updateModulationParameters();
+    return true;
+  }
+
+  if (preset == PRESET_FAST) {
+    this->bandwidth = 6;            //500khz
+    this->codingRate = 1;           //CR_4_5
+    this->spreadingFactor = 5;      //SF5
+    this->lowDataRateOptimize = 0;  //Don't optimize (used for SF12 only)
+    this->updateModulationParameters();
+    return true;
+  }
+
+  //Invalid preset specified
+  return false;
+}
 
 /** (Optional) Set the operating frequency of the radio.
 * The 1262 radio supports 150-960Mhz.  This library uses a default of 915Mhz.

@@ -40,6 +40,11 @@
 #define SX1262_RESET A0
 #define SX1262_DIO1  5
 
+//Presets. These help make radio config easier
+#define PRESET_DEFAULT    0
+#define PRESET_LONGRANGE  1
+#define PRESET_FAST       2
+
 class LoraSx1262 {
   public:
     bool begin();
@@ -50,6 +55,7 @@ class LoraSx1262 {
     int lora_receive_blocking(byte* buff, int buffMaxLen, uint32_t timeout); /*Waits until a packet is received, with an optional timeout*/
 
     //Radio configuration (optional)
+    bool configSetPreset(int preset);
     bool configSetFrequency(long frequencyInHz);
     bool configSetBandwidth(int bandwidth);
     bool configSetCodingRate(int codingRate);
@@ -70,12 +76,13 @@ class LoraSx1262 {
     bool inReceiveMode = false;
     uint8_t spiBuff[32];   //Buffer for sending SPI commands to radio
 
-    //Config variables (defaults set)
-    uint32_t pllFrequency       = 959447040;  //Default. 959447040 = 915mhz
-    uint8_t bandwidth           = 0x06;       //0x06 = 500khz (ranges from 7.81khz to 500khz, see lookup table datasheet 13.4.5.2)
-    uint8_t codingRate          = 0x01;       //0x01 = LORA_CR_4_5
-    uint8_t spreadingFactor     = 0x07;       //Can be SF5 to SF12, represented as 0x05-0x0C respectively.  0x05 = fastest, 0x0C = highest range
-    uint8_t lowDataRateOptimize = 0x00;       //Should be on (0x01) for SF11 + SF12, off for all others
+    //Config variables (set to PRESET_DEFAULT on init)
+    uint32_t pllFrequency;
+    uint8_t bandwidth;
+    uint8_t codingRate;
+    uint8_t spreadingFactor;
+    uint8_t lowDataRateOptimize;
+    uint32_t transmitTimeout; //Worst-case transmit time depends on some factors
 };
 
 #endif
