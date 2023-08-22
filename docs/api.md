@@ -1,181 +1,281 @@
-# Servo library
+# LoraSx1262 library
 
 ## Methods
 
-### `attach()`
+* [begin()](#begin)
+* [transmit()](#transmit)
+* [receive_async()](#receive_async)
+* [receive_blocking()](#receive_blocking)
+* [configSetPreset()](#configSetPreset)
+* [configSetFrequency()](#configSetFrequency)
+* [configSetBandwidth()](#configSetBandwidth)
+* [configSetCodingRate()](#configSetCodingRate)
+* [configSetSpreadingFactor()](#configSetSpreadingFactor)
 
-Attach the Servo variable to a pin. Note that in Arduino 0016 and earlier, the Servo library supports servos on only two pins: 9 and 10.
+
+### `begin()`
+
+Initialize Radio with bare-bones configuration required for it to work.
+This uses the library default pinouts, which can be configured manually if you are not using one of the supported arduino shields.
+
+This initilizes the radio with default radio settings, which are good for most applications.  For most applications, you will not have to change any of the defaults.  Advanced users can specify each configuration option explicitly. Beginner and Intermediate users can use configuration presets.  See [configSetPreset()](#configSetPreset) for details.
+
+Default Radio Configuration:
+* Frequency: 915mhz
+* Bandwidth: 250khz
+* Spreading Factor: 7
+* Coding Rate: 1
+* Low Data Rate Optimize: Off
 
 #### Syntax
 
 ```
-servo.attach(pin) 
-servo.attach(pin, min, max)
+radio.begin() 
 ```
 
 #### Parameters
 
-* _servo_: a variable of type `Servo`
-* _pin_: the number of the pin that the servo is attached to
-* _min_ (optional): the pulse width, in microseconds, corresponding to the minimum (0 degree) angle on the servo (defaults to 544)
-* _max_ (optional): the pulse width, in microseconds, corresponding to the maximum (180 degree) angle on the servo (defaults to 2400)
+None
+
+#### Returns
+* true on success
+* false if radio failed to initialize 
 
 #### Example
 
 ```
-#include <Servo.h> 
+#include <LoraSx1262.h> 
 
-Servo myservo;
+LoraSx1262 radio;
 
 void setup() 
 { 
-  myservo.attach(9);
+  Serial.begin(9600);
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
 } 
 
 void loop() {} 
 ```
 
-#### See also
+### `transmit()`
 
-* [attached()](#attached)
-* [detach()](#detach)
-
-### `write()`
-
-Writes a value to the servo, controlling the shaft accordingly. On a standard servo, this will set the angle of the shaft (in degrees), moving the shaft to that orientation. On a continuous rotation servo, this will set the speed of the servo (with 0 being full-speed in one direction, 180 being full speed in the other, and a value near 90 being no movement).
+Transmit a lora packet. Transmitter and receiver must have the same config to be able to talk to eachother.  If you are using a radio configuration other than the defaults (which are set up in `begin()`), you must make sure they match on transmitter and receiver.
 
 #### Syntax
 
 ```
-servo.write(angle)
+radio.transmit(byte *data, int dataLen)
 ```
 
 #### Parameters
 
-* _servo_: a variable of type Servo
-* _angle_: the value to write to the servo, from 0 to 180
+* _data_: A pointer to the payload to be sent. Payload can be 0-256 bytes long.  This can be raw binary data, or a string (`char*`)
+* _dataLen_: The length of `data` in bytes. This must be 0-256.
 
 #### Example
 
 ````
-#include <Servo.h> 
+#include <LoraSx1262.h> 
 
-Servo myservo;
+byte* payload = "Hello world.  This a pretty long payload. We can transmit up to 255 bytes at once, which is pretty neat if you ask me";
+LoraSx1262 radio;
 
 void setup() 
 { 
-  myservo.attach(9);
-  myservo.write(90);  // set servo to mid-point
+  Serial.begin(9600);
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
 } 
 
-void loop() {} 
+void loop() {
+  //Transmit a packet every 1 second
+  radio.transmit(payload,strlen(payload));
+  delay(1000);
+} 
 ````
-#### See also
 
-* [attach()](#attach)
-* [read()](#read)
+### `receive_async()`
 
-### `writeMicroseconds()`
+Non-blocking receive.  If a packet has been received by the radio, this function will copy it from the radio to the user provided buffer.  If no packet has been received by the radio yet, this function will do nothing, and will not prevent the rest of your code for running.
 
-Writes a value in microseconds (us) to the servo, controlling the shaft accordingly. On a standard servo, this will set the angle of the shaft. On standard servos a parameter value of 1000 is fully counter-clockwise, 2000 is fully clockwise, and 1500 is in the middle.
+This will receive 0-255 bytes, which is dependent on the packet size from the transmitter. If the user provided buffer cannot hold the entire packet, the overflow is discarded.
 
-Note that some manufactures do not follow this standard very closely so that servos often respond to values between 700 and 2300. Feel free to increase these endpoints until the servo no longer continues to increase its range. Note however that attempting to drive a servo past its endpoints (often indicated by a growling sound) is a high-current state, and should be avoided.
-
-Continuous-rotation servos will respond to the writeMicrosecond function in an analogous manner to the write function.
+See `receive_blocking()` if you need your code to halt until a packet is received
 
 #### Syntax
 
 ````
-servo.writeMicroseconds(us)
+radio.receive_async(byte* buff, int buffMaxLen)
 ````
 
 #### Parameters
 
-* _servo_: a variable of type Servo
-* _us_: the value of the parameter in microseconds (int)
+* _buff_: A user provided byte array for the packet payload to be copied into.  Contents of this array will be overwritten by this function.
+* _buffMaxLen_: The maximum length of the buffer provided above.  This prevents a buffer overflow in the event that a received packet payload is larger than the buffer provided.
+
+#### Returns
+* -1 When no packet has been received by the radio yet
+* 0 When a packet with an empty payload has been received
+* 1-255 when a non-empty payload has been received. This is the length of the packet payload.  This will always return the ACTUAL payload size, even if it is too large to fit in the user provided buffer.
 
 #### Example
 
 ````
-#include <Servo.h> 
+#include <LoraSx1262.h>
 
-Servo myservo;
+LoraSx1262 radio;
+byte receiveBuff[255];
 
-void setup() 
-{ 
-  myservo.attach(9);
-  myservo.writeMicroseconds(1500);  // set servo to mid-point
-} 
+void setup() {
+  Serial.begin(9600);
 
-void loop() {} 
+  if (!radio.begin()) { //Initialize the radio
+    Serial.println("Failed to initialize radio");
+  }
+}
+
+void loop() {
+  //Receive a packet over radio
+  int bytesRead = radio.lora_receive_async(receiveBuff, sizeof(receiveBuff));
+
+  if (bytesRead > -1) {
+    //Print the payload out over serial
+    Serial.print("Received: ");
+    Serial.write(receiveBuff,bytesRead);
+    Serial.println(); //Add a newline after printing
+  }
+}
 ````
 
 #### See also
 
-* [attach()](#attach)
-* [read()](#read)
+* [receive_blocking()](#receive_blocking)
 
 
-### `read()`
+### `receive_blocking()`
 
-Read the current angle of the servo (the value passed to the last call to [write()](#write)).
+Blocking receive.  If a packet has been received by the radio, this function will copy it from the radio to the user provided buffer.  If no packet has been received by the radio yet, this function wait until a packet is received.
+
+This will receive 0-255 bytes, which is dependent on the packet size from the transmitter. If the user provided buffer cannot hold the entire packet, the overflow is discarded.
+
+See `receive_async()` if you would like to receive a packet without halting your code until a packet is available.
 
 #### Syntax
 
 ````
-servo.read()
+radio.receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout)
 ````
 
 #### Parameters
 
-* _servo_: a variable of type `Servo`
+* _buff_: A user provided byte array for the packet payload to be copied into.  Contents of this array will be overwritten by this function.
+* _buffMaxLen_: The maximum length of the buffer provided above.  This prevents a buffer overflow in the event that a received packet payload is larger than the buffer provided.
+* _timeout_: (Optional) The maximum amount of time to wait for a packet in ms.  Set to `0` for no timeout (wait indefinitely).
+
+#### Returns
+* -1 When no packet is available, and we hit our timeout
+* 0 When a packet with an empty payload has been received
+* 1-255 when a non-empty payload has been received. This is the length of the packet payload.  This will always return the ACTUAL payload size, even if it is too large to fit in the user provided buffer.
+
+#### Example
+
+````
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+byte receiveBuff[255];
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize the radio
+    Serial.println("Failed to initialize radio");
+  }
+}
+
+void loop() {
+  //Wait up to 10 seconds for a packet to be received
+  int bytesRead = radio.lora_receive_async(receiveBuff, sizeof(receiveBuff),10000);
+
+  if (bytesRead < 0) {
+    Serial.println("Timeout hit, no packet received);
+  } else {
+    //Print the payload out over serial
+    Serial.print("Received: ");
+    Serial.write(receiveBuff,bytesRead);
+    Serial.println(); //Add a newline after printing
+  }
+}
+````
+
+#### See also
+
+* [receive_async()](#receive_async)
+
+### `configSetPreset()`
+
+Change radio config using one of the pre-made configuration presets.  This is recommended for Beginner to Intermediate users.  Reminder: Both the transmitter and receiver must have identical configurations to be able to communicate with eachother.
+
+Advanced users can change configurations individually instead of using presets.  See [configSetBandwidth()](#configSetBandwidth), [configSetCodingRate()](#configSetCodingRate), and [configSetSpreadingFactor()](#configSetSpreadingFactor) for details.
+
+This does not change the radio frequency.  See [configSetFrequency()](#configSetFrequency).
+
+Avalilable Presets:
+* `PRESET_DEFAULT`: A simple multi-purpose preset for medium range and medium transmit speed.
+  * Bandwidth: 250khz
+  * Coding Rate: 4_5
+  * Spreading Factor: 7
+* `PRESET_LONGRANGE`: Longer range, slower speed.  Lower speeds allow long range communications to be more reliable
+  * Bandwidth: 125khz
+  * Coding Rate: 4_5
+  * Spreading Factor: 12
+* `PRESET_FAST`: High speed for short range. This works best when transmitter and receiver are closer together, allowing faster data speeds that would be unreliable at longer distances
+  * Bandwidth: 500khz
+  * Coding Rate: 4_5
+  * Spreading Factor: 5
+
+#### Example
+
+````
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
+
+  //Set radio to long-range preset
+  radio.configSetPreset(PRESET_LONGRANGE);
+}
+
+void loop() {}
+````
+
+#### Syntax
+
+```
+radio.configSetPreset(int preset)
+```
+
+#### Parameters
+
+* _preset_: Set to `PRESET_DEFAULT`, `PRESET_LONGRANGE`, or `PRESET_FAST`
 
 #### Returns
 
-The angle of the servo, from 0 to 180 degrees.
+`true` When a valid preset is specified
+`false` When an invalid preset is specified
 
 #### See also
 
-* [write()](#write)
-
-### `attached()`
-
-Check whether the Servo variable is attached to a pin.
-
-#### Syntax
-
-```
-servo.attached()
-```
-
-#### Parameters
-
-* _servo_: a variable of type `Servo`
-
-#### Returns
-
-`true` if the servo is attached to pin; `false` otherwise.
-
-#### See also
-
-* [attach()](#attach)
-* [detach()](#detach)
-
-### `detach()`
-
-Detach the Servo variable from its pin. If all Servo variables are detached, then pins 9 and 10 can be used for PWM output with [analogWrite()](https://www.arduino.cc/reference/en/language/functions/analog-io/analogwrite/).
-
-#### Syntax
-
-```
-servo.detach()
-```
-
-#### Parameters
-
-* _servo_: a variable of type `Servo`
-
-#### See also
-
-* [attach()](#attach)
-* [attached()](#attached)
+* [configSetFrequency()](#configSetFrequency)
+* [configSetBandwidth()](#configSetBandwidth)
+* [configSetCodingRate()](#configSetCodingRate)
+* [configSetSpreadingFactor()](#configSetSpreadingFactor)
