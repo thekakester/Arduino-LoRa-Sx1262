@@ -50,7 +50,6 @@ class LoraSx1262 {
     bool begin();
     bool sanityCheck(); /*Returns true if we have an active SPI communication with the radio*/
     void transmit(byte* data, int dataLen);
-    void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
     int lora_receive_async(byte* buff, int buffMaxLen); /*Checks to see if a lora packet was received yet, returns the packet if available*/
     int lora_receive_blocking(byte* buff, int buffMaxLen, uint32_t timeout); /*Waits until a packet is received, with an optional timeout*/
 
@@ -69,6 +68,7 @@ class LoraSx1262 {
     uint32_t frequencyToPLL(long freqInHz);
 
   private:
+    void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
     void configureRadioEssentials();
     bool waitForRadioCommandCompletion(uint32_t timeout);
     void updateRadioFrequency();

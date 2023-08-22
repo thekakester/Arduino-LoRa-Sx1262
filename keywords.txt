@@ -1,0 +1,31 @@
+#######################################
+# Syntax Coloring Map LoraSx1262
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+LoraSx1262	KEYWORD1	LoraSx1262
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+begin	KEYWORD2
+sanityCheck	KEYWORD2
+transmit	KEYWORD2
+setModeReceive	KEYWORD2
+lora_receive_async	KEYWORD2
+lora_receive_blocking	KEYWORD2
+configSetPreset	KEYWORD2
+configSetFrequency	KEYWORD2
+configSetBandwidth	KEYWORD2
+configSetCodingRate	KEYWORD2
+configSetSpreadingFactor	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+PRESET_DEFAULT	LITERAL1
+PRESET_LONGRANGE	LITERAL1
+PRESET_FAST	LITERAL1
