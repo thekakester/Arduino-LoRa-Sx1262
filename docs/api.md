@@ -29,7 +29,7 @@ Default Radio Configuration:
 
 #### Syntax
 
-```
+```C++
 radio.begin() 
 ```
 
@@ -43,7 +43,7 @@ None
 
 #### Example
 
-```
+```C++
 #include <LoraSx1262.h> 
 
 LoraSx1262 radio;
@@ -65,7 +65,7 @@ Transmit a lora packet. Transmitter and receiver must have the same config to be
 
 #### Syntax
 
-```
+```C++
 radio.transmit(byte *data, int dataLen)
 ```
 
@@ -76,7 +76,7 @@ radio.transmit(byte *data, int dataLen)
 
 #### Example
 
-````
+```C++
 #include <LoraSx1262.h> 
 
 byte* payload = "Hello world.  This a pretty long payload. We can transmit up to 255 bytes at once, which is pretty neat if you ask me";
@@ -95,7 +95,7 @@ void loop() {
   radio.transmit(payload,strlen(payload));
   delay(1000);
 } 
-````
+```
 
 ### `receive_async()`
 
@@ -107,9 +107,9 @@ See `receive_blocking()` if you need your code to halt until a packet is receive
 
 #### Syntax
 
-````
+```C++
 radio.receive_async(byte* buff, int buffMaxLen)
-````
+```
 
 #### Parameters
 
@@ -123,7 +123,7 @@ radio.receive_async(byte* buff, int buffMaxLen)
 
 #### Example
 
-````
+```C++
 #include <LoraSx1262.h>
 
 LoraSx1262 radio;
@@ -148,7 +148,7 @@ void loop() {
     Serial.println(); //Add a newline after printing
   }
 }
-````
+```
 
 #### See also
 
@@ -165,9 +165,9 @@ See `receive_async()` if you would like to receive a packet without halting your
 
 #### Syntax
 
-````
+```C++
 radio.receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout)
-````
+```
 
 #### Parameters
 
@@ -182,7 +182,7 @@ radio.receive_blocking(byte *buff, int buffMaxLen, uint32_t timeout)
 
 #### Example
 
-````
+```C++
 #include <LoraSx1262.h>
 
 LoraSx1262 radio;
@@ -209,7 +209,7 @@ void loop() {
     Serial.println(); //Add a newline after printing
   }
 }
-````
+```
 
 #### See also
 
@@ -239,7 +239,7 @@ Avalilable Presets:
 
 #### Example
 
-````
+```C++
 #include <LoraSx1262.h>
 
 LoraSx1262 radio;
@@ -256,11 +256,11 @@ void setup() {
 }
 
 void loop() {}
-````
+```
 
 #### Syntax
 
-```
+```C++
 radio.configSetPreset(int preset)
 ```
 
