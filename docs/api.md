@@ -237,6 +237,21 @@ Avalilable Presets:
   * Coding Rate: 4_5
   * Spreading Factor: 5
 
+#### Syntax
+
+```C++
+radio.configSetPreset(int preset)
+```
+
+#### Parameters
+
+* _preset_: Set to `PRESET_DEFAULT`, `PRESET_LONGRANGE`, or `PRESET_FAST`
+
+#### Returns
+
+* `true` When a valid preset is specified
+* `false` When an invalid preset is specified
+
 #### Example
 
 ```C++
@@ -258,24 +273,238 @@ void setup() {
 void loop() {}
 ```
 
+#### See also
+
+* [configSetFrequency()](#configSetFrequency)
+* [configSetBandwidth()](#configSetBandwidth)
+* [configSetCodingRate()](#configSetCodingRate)
+* [configSetSpreadingFactor()](#configSetSpreadingFactor)
+
+### `configSetFrequency()`
+
+Change the operating frequency of the radio.  Transmitters and receivers must have matching frequencies (and radio config) to communicate with eachother.  Default frequency is 915mhz.
+
+Changing the frequency allows radio communications between devices without interferfing with devices that are using a different frequency.  Reminder: the range of frequencies that are used by a radio is the base frequncy + the bandwidth. For example, 915mhz with 500khz (0.5mhz) bandwidth will use frequency ranges 914.75 - 915.25mhz.
+
+*WARNING*: You must use frequencies that are legal in your country.  Search for "ISM Band Frequencies" to see available frequencies for your country.
+
+This radio is compatible with frequencies from 150-960mhz.
+
+Example:
+* Region 2 (Americas): 902-928mhz
+
 #### Syntax
 
 ```C++
-radio.configSetPreset(int preset)
+radio.configSetFrequency(uint32_t frequency)
 ```
 
 #### Parameters
 
-* _preset_: Set to `PRESET_DEFAULT`, `PRESET_LONGRANGE`, or `PRESET_FAST`
+* _frequency_: Frequency in hz. Eg use `915000000` for 915mhz.  This hardware supports 150-960mhz, but you must make sure that the frequency you choose is legal in your region.
 
 #### Returns
 
-`true` When a valid preset is specified
-`false` When an invalid preset is specified
+* `true` When frequency set successfully
+* `false` When an unsupported frequency is used (outside usable range)
+
+#### Example
+
+```C++
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
+
+  //Set frequency to 913mhz
+  radio.configSetFrequency(913000000);
+}
+
+void loop() {}
+```
+
+### `configSetBandwidth()`
+
+Advanced configuration. This is recommended for users who are familiar with underlying radio concepts. Beginners are recommended to use presets with the [configSetPreset()](#configSetPreset) function.
+
+#### Syntax
+
+```C++
+radio.configSetBandwidth(uint8_t bandwidthId)
+```
+
+#### Parameters
+
+* _bandwidthId_: Bandwidth presets that are built-in to the radio.  See sx1262 datasheet section 13.4.5.2 for details.  Valid options:
+
+| bandwidthId  | Bandwidth            |
+| ------------ | -------------------- |
+|    0x00      |    7.81khz           |
+|    0x08      |   10.42khz           |
+|    0x01      |   15.63khz           |
+|    0x09      |   20.83khz           |
+|    0x02      |   31.25khz           |
+|    0x0A      |   41.67khz           |
+|    0x03      |   62.50khz           |
+|    0x04      |  125.00khz           |
+|    0x05      |  250.00khz (default) |
+|    0x06      |  500.00khz           |
+
+#### Returns
+
+* `true` When bandwidth is set successfully
+* `false` When an invalid bandwitdh identifier is used
+
+#### Example
+
+```C++
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
+
+  //Set Bandwidth to 500khz
+  radio.configSetBandwidth(0x06);
+}
+
+void loop() {}
+```
 
 #### See also
 
-* [configSetFrequency()](#configSetFrequency)
+* [configSetPreset()](#configSetFrequency)
+* [configSetBandwidth()](#configSetBandwidth)
+* [configSetCodingRate()](#configSetCodingRate)
+* [configSetSpreadingFactor()](#configSetSpreadingFactor)
+
+### `configSetCodingRate()`
+
+Advanced configuration. This is recommended for users who are familiar with underlying radio concepts. Beginners are recommended to use presets with the [configSetPreset()](#configSetPreset) function.
+
+Coding rate increases the packet size to improve the reception of messages. [Learn More](https://www.thethingsnetwork.org/docs/lorawan/fec-and-code-rate/)
+
+#### Syntax
+
+```C++
+radio.configSetCodingRate(uint8_t codingRateId)
+```
+
+#### Parameters
+
+* _codingRateId_: Coding Rate presets that are built-in to the radio.  See sx1262 datasheet section 13.4.5.2 for details.  Valid options:
+
+| codingRateId | Coding Rate        |
+| ----------   | ----------------   |
+|    0x01      |   CR_4_5 (default) |
+|    0x02      |   CR_4_6           |
+|    0x03      |   CR_4_7           |
+|    0x04      |   CR_4_8           |
+
+#### Returns
+
+* `true` When coding rate is set successfully
+* `false` When an invalid coding rate identifier is used
+
+#### Example
+
+```C++
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
+
+  //Set Coding Rate to CR_4_6
+  radio.configSetCodingRate(0x02);
+}
+
+void loop() {}
+```
+
+#### See also
+* [configSetPreset()](#configSetFrequency)
+* [configSetBandwidth()](#configSetBandwidth)
+* [configSetCodingRate()](#configSetCodingRate)
+* [configSetSpreadingFactor()](#configSetSpreadingFactor)
+
+### `configSetSpreadingFactor()`
+
+Advanced configuration. This is recommended for users who are familiar with underlying radio concepts. Beginners are recommended to use presets with the [configSetPreset()](#configSetPreset) function.
+
+Spreading factor changes the chirp rate.
+Generally Speaking:
+* High SpreadingFactor: Faster data rate, less reliable at long ranges
+* Low SpreadingFactor: Lower data rate, more reliable at long ranges
+
+[Learn More](https://lora-developers.semtech.com/documentation/tech-papers-and-guides/lora-and-lorawan/)
+
+#### Syntax
+
+```C++
+radio.configSetSpreadingFactor(uint8_t spreadingFactorId)
+```
+
+#### Parameters
+
+* _spreadingFactorId_: Spreading Factor presets that are built-in to the radio.  See sx1262 datasheet section 13.4.5.2 for details.  Valid options:
+
+| spreadingFactorId | Spreading Factor                          |
+| ------------------| ----------------------------------------- |
+|         5         | SF5 (fastest, short range)                |
+|         6         | SF6                                       |
+|         7         | SF7 (default)                             |
+|         8         | SF8                                       |
+|         9         | SF9                                       |
+|        10         | SF10                                      |
+|        11         | SF11                                      |
+|        12         | SF12 (Slowest, long range, most reliable) |
+
+#### Returns
+
+* `true` When spreading factor is set successfully
+* `false` When an invalid spreading factor identifier is used
+
+#### Example
+
+```C++
+#include <LoraSx1262.h>
+
+LoraSx1262 radio;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!radio.begin()) { //Initialize radio
+    Serial.println("Failed to initialize radio.");
+  }
+
+  //Set Spreading Factor to SF12 (most reliable, but slowest)
+  radio.configSetSpreadingFactor(12);
+}
+
+void loop() {}
+```
+
+#### See also
+
+* [configSetPreset()](#configSetFrequency)
 * [configSetBandwidth()](#configSetBandwidth)
 * [configSetCodingRate()](#configSetCodingRate)
 * [configSetSpreadingFactor()](#configSetSpreadingFactor)
