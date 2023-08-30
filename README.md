@@ -1,6 +1,35 @@
 # Arduino-LoRa-Sx1262
-A lightweight and fast library for using a LoRa 900mhz radio on an Arduino Uno (R3 and R4).
-This library currently uses 2690 bytes of ProgMem and 25 bytes of RAM.
+Long-Range Radio implementation for Arduino using LoRa Sx1262 900mhz radio.  Extremely lightweight and fast code that works on many Arduino platforms.
+
+This library uses:
+ - 2042 bytes of flash
+ - 50 bytes of ram
+ - <sup><sub>(Updated of v1.0, Aug 2023)</sub></sup>
+
+## Compatibility
+
+### Arduino Boards
+This library should work for any Arduino compatible board, for 3.3V or 5V platforms.  Here's a list of boards I explicitly tested.
+
+| Arduino Board                       | Compatible |  Tested (+lib ver) |
+|-------------------------------------|------------|--------------------|
+| Arduino Uno (R3, Atmel)             | Yes        | Yes, (V1.0)        |
+| Arduino Uno (R4, Renesas)           | Yes        | Yes, (V1.0)        |
+| Arduino Nano                        | Yes        | Planned            |
+| Arduino Mega                        | Yes        | Planned            |
+| SparkFun SAMD21 Dev (Arm M0)        | Yes        | Planned            |
+| Adafruit METRO M0 Express           | Yes        | Planned            |
+| SparkFun RedBoard Turbo (Cortex M0) | Yes        | Planned            |
+| Seeeduino Cortex-M0+                | Yes        | Planned            |
+
+### LoRa Modules / Shields
+| LoRa Module/Shield                      | Compatible |  Tested (+lib ver) |
+|-----------------------------------------|------------|--------------------|
+| Douglas LoRa Sx1262 Breakout            | Yes        | Yes, (V1.0)        |
+| Douglas LoRa Sx1262 Breakout            | Yes        | Yes, (V1.0)        |
+| Connected Development CDDK-SX1262-01001 | Yes        | Untested           |
+
+
 
 # How to use (Examples)
 ## Receive Example:
