@@ -16,6 +16,7 @@
 
 #ifndef __LORA1262__
 #define __LORA1262__
+
 #include <Arduino.h>
 #include <SPI.h>
 

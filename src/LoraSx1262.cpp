@@ -1,4 +1,4 @@
-#include "Arduino.h"
+
 /*License: Creative Commons 4.0 - Attribution, NonCommercial
 * https://creativecommons.org/licenses/by-nc/4.0/
 * Author: Mitch Davis (2023). github.com/thekakester
@@ -15,10 +15,12 @@
 * For example, other rights such as publicity, privacy, or moral rights may limit how you use the material
 */
 
+#include "Arduino.h"
 #include "LoraSx1262.h"
 
 bool LoraSx1262::begin() {
   //Set up SPI to talk to the LoRa Radio shield
+  
   SPI.begin();
 
   //Set I/O pins based on the configuration
@@ -546,6 +548,7 @@ bool LoraSx1262::configSetFrequency(long frequencyInHz) {
   //PLL frequency controls the radio's clock multipler to achieve the desired frequency
   this->pllFrequency = frequencyToPLL(frequencyInHz);
   updateRadioFrequency();
+  return true;
 }
 
 /*Set the bandwith (basically, this is how big the frequency span is that we occupy)
@@ -563,8 +566,8 @@ bool LoraSx1262::configSetFrequency(long frequencyInHz) {
 *    0x0A     |   41.67khz
 *    0x03     |   62.50khz
 *    0x04     |  125.00khz
-*    0x05     |  250.00khz
-*    0x06     |  500.00khz (default)
+*    0x05     |  250.00khz (default)
+*    0x06     |  500.00khz
 *
 * Returns TRUE on success, FALSE on failure (invalid bandwidth)
 */
@@ -592,6 +595,7 @@ bool LoraSx1262::configSetCodingRate(int codingRate) {
   if (codingRate < 1 || codingRate > 4) { return false; }
   this->codingRate = codingRate;
   this->updateModulationParameters();
+  return true;
 }
 
 /*Change the spreading factor of a packet
@@ -619,6 +623,7 @@ bool LoraSx1262::configSetSpreadingFactor(int spreadingFactor) {
   this->lowDataRateOptimize = (spreadingFactor >= 11) ? 1 : 0;  //Turn on for SF11+SF12, turn off for anything else
   this->spreadingFactor = spreadingFactor;
   this->updateModulationParameters();
+  return true;
 }
 
 /*Convert a frequency in hz (such as 915000000) to the respective PLL setting.
