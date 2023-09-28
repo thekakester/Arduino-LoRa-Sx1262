@@ -20,7 +20,7 @@ This library should work for any Arduino compatible board, for 3.3V or 5V platfo
 | Arduino Zero                        | Yes        | Yes, (V1.0)        | <sup><sub>Requires manual wiring (shield doesn't work with default pinout)</sub></sup> |
 | Arduino Mega                        | Yes        | Planned            |                                                                                        |
 | SparkFun SAMD21 Dev (Arm M0)        | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
-| Adafruit METRO M0 Express           | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| Adafruit METRO M0 Express           | Yes        | Yes, (V1.0)        | <sup><sub>Requires manual wiring (shield doesn't work with default pinout)</sub></sup> |
 | SparkFun RedBoard Turbo (Cortex M0) | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
 | Seeeduino Cortex-M0+                | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
 
