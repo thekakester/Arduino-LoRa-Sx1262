@@ -11,17 +11,18 @@ This library uses:
 ### Arduino Boards
 This library should work for any Arduino compatible board, for 3.3V or 5V platforms.  Here's a list of boards I explicitly tested.
 
-| Arduino Board                       | Compatible |  Tested (+lib ver) | Notes                                                                              |
-|-------------------------------------|------------|--------------------|------------------------------------------------------------------------------------|
-| Arduino Uno (R3, Atmel)             | Yes        | Yes, (V1.0)        |                                                                                    |
-| Arduino Uno (R4, Renesas)           | Yes        | Yes, (V1.0)        |                                                                                    |
-| Arduino Nano 33 IOT                 | Yes        | Yes, (V1.0)        | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
-| Arduino Nano                        | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
-| Arduino Mega                        | Yes        | Planned            |                                                                                    |
-| SparkFun SAMD21 Dev (Arm M0)        | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
-| Adafruit METRO M0 Express           | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
-| SparkFun RedBoard Turbo (Cortex M0) | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
-| Seeeduino Cortex-M0+                | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup> |
+| Arduino Board                       | Compatible |  Tested (+lib ver) | Notes                                                                                  |
+|-------------------------------------|------------|--------------------|----------------------------------------------------------------------------------------|
+| Arduino Uno (R3, Atmel)             | Yes        | Yes, (V1.0)        |                                                                                        |
+| Arduino Uno (R4, Renesas)           | Yes        | Yes, (V1.0)        |                                                                                        |
+| Arduino Nano 33 IOT                 | Yes        | Yes, (V1.0)        | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| Arduino Nano                        | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| Arduino Zero                        | Yes        | Yes, (V1.0)        | <sup><sub>Requires manual wiring (shield doesn't work with default pinout)</sub></sup> |
+| Arduino Mega                        | Yes        | Planned            |                                                                                        |
+| SparkFun SAMD21 Dev (Arm M0)        | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| Adafruit METRO M0 Express           | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| SparkFun RedBoard Turbo (Cortex M0) | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
+| Seeeduino Cortex-M0+                | Yes        | Planned            | <sup><sub>Requires manual wiring (shield doesn't fit this form factor)</sub></sup>     |
 
 ### LoRa Modules / Shields
 | LoRa Module/Shield                      | Compatible |  Tested (+lib ver) |
