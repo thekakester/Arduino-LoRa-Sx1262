@@ -20,22 +20,25 @@
 
 bool LoraSx1262::begin() {
   //Set up SPI to talk to the LoRa Radio shield
-  
   SPI.begin();
 
   //Set I/O pins based on the configuration
   //See .h file for pinout diagram
+  digitalWrite(SX1262_NSS, 1);  //High = inactive
   pinMode(SX1262_NSS,OUTPUT);
   digitalWrite(SX1262_NSS, 1);  //High = inactive
 
-  pinMode(SX1262_RESET,OUTPUT);
   digitalWrite(SX1262_RESET, 1);  //High = inactive
-
+  pinMode(SX1262_RESET,OUTPUT);
+  
   pinMode(SX1262_DIO1, INPUT);  //Radio interrupt pin.  Goes high when we receive a packet
 
   //Hardware reset the radio by toggling the reset pin
-  digitalWrite(SX1262_RESET, 0); delay(10);
-  digitalWrite(SX1262_RESET, 1); delay(10);
+  digitalWrite(SX1262_RESET, 0); delay(100);
+  digitalWrite(SX1262_RESET, 1); delay(100);
+  digitalWrite(SX1262_RESET, 0); delay(100);
+  digitalWrite(SX1262_RESET, 1); delay(100);
+  
   
   //Ensure SPI communication is working with the radio
   bool success = sanityCheck();
@@ -56,6 +59,8 @@ bool LoraSx1262::begin() {
 bool LoraSx1262::sanityCheck() {
 
   uint16_t addressToRead = 0x0740;
+  SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE0));
+  delay(10);
 
   digitalWrite(SX1262_NSS, 0);  //CS Low = Enabled
   SPI.transfer(0x1D); //OpCode for "read register"
@@ -63,6 +68,8 @@ bool LoraSx1262::sanityCheck() {
   SPI.transfer(0x00);  //Dummy byte
   uint8_t regValue = SPI.transfer(0x00);  //Read response
   digitalWrite(SX1262_NSS, 1);  //CS High = Disabled
+  
+  Serial.println(regValue,HEX);
 
   return regValue == 0x14;  //Success if we read 0x14 from the register
 }
@@ -156,17 +163,10 @@ void LoraSx1262::transmit(byte *data, int dataLen) {
   //Max lora packet size is 255 bytes
   if (dataLen > 255) { dataLen = 255;}
 
-  /*Set packet parameters
-  # Tell LoRa what kind of packet we're sending (and how long)
-  # Parameters are:
-  # - Preamble Length MSB
-  # - Preamble Length LSB
-  # - Header Type (variable vs fixed len)
-  # - Payload Length
-  # - CRC on/off
-  # - IQ Inversion on/off
-  */
-   
+  //Switching directly from rx to tx mode is slow. Go to standby first
+  if (inReceiveMode) {
+    setModeStandby();
+  }
 
   digitalWrite(SX1262_NSS,0); //Enable radio chip-select
   spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
@@ -249,7 +249,7 @@ bool LoraSx1262::waitForRadioCommandCompletion(uint32_t timeout) {
     //Parse out the status (see datasheet for what each bit means)
     uint8_t chipMode = (spiBuff[1] >> 4) & 0x7;     //Chip mode is bits [6:4] (3-bits)
     uint8_t commandStatus = (spiBuff[1] >> 1) & 0x7;//Command status is bits [3:1] (3-bits)
-
+    
     //Status 0, 1, 2 mean we're still busy.  Anything else means we're done.
     //Commands 3-6 = command timeout, command processing error, failure to execute command, and Tx Done (respoectively)
     if (commandStatus != 0 && commandStatus != 1 && commandStatus != 2) {
@@ -304,6 +304,20 @@ void LoraSx1262::setModeReceive() {
 
   //Remember that we're in receive mode so we don't need to run this code again unnecessarily
   inReceiveMode = true;
+}
+
+/*Set radio into standby mode.
+Switching directly from Rx to Tx mode can be slow, so we first want to go into standby*/
+void LoraSx1262::setModeStandby() {
+  // Tell the chip to wait for it to receive a packet.
+  // Based on our previous config, this should throw an interrupt when we get a packet
+  digitalWrite(SX1262_NSS,0); //Enable radio chip-select
+  spiBuff[0] = 0x80;          //0x80 is the opcode for "SetStandby"
+  spiBuff[1] = 0x01;          //0x00 = STDBY_RC, 0x01=STDBY_XOSC
+  SPI.transfer(spiBuff,2);
+  digitalWrite(SX1262_NSS,1); //Disable radio chip-select
+  waitForRadioCommandCompletion(100);
+  inReceiveMode = false;  //No longer in receive mode
 }
 
 /*Receive a packet if available

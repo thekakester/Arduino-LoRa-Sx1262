@@ -70,6 +70,7 @@ class LoraSx1262 {
 
   private:
     void setModeReceive();  //Puts the radio in receive mode, allowing it to receive packets
+    void setModeStandby();  //Put radio into standby mode.  Switching from Rx to Tx directly is slow
     void configureRadioEssentials();
     bool waitForRadioCommandCompletion(uint32_t timeout);
     void updateRadioFrequency();
